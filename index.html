@@ -509,6 +509,7 @@ c36:"Activos no Monetarios (valor fiscal)",c37:"Inventario",c38:"Activos Categor
 };
 
 const E_DESC={
+col_a:"Año de la Pérdida",col_b:"Pérdida al Inicio del Periodo",col_c:"Índice de Inflación (%)",col_d:"Cantidad Ajuste Por Inflación",col_e:"Pérdida Ajustada Por Inflación",col_f:"Periodos por Compensar",col_g:"Pérdida a Compensar",col_h:"Renta Neta Imponible",col_i:"% de la Renta Neta Imponible",col_j:"Límite de Pérdida a Compensar",col_k:"Pérdida Compensable Periodo",col_l:"Pérdida Pendiente de Compensar",
 c7:"A DIVIDENDOS",c8:"A RESERVAS",c9:"UTILIDADES NO DISTRIBUIDA",c10:"TOTAL",
 c11:"PÉRDIDA DE CAPITAL PENDIENTE DE COMPENSAR DE EJERCICIOS ANTERIORES",c12:"GANANCIA DE CAPITAL DEL EJERCICIO QUE SE COMPENSAN",c13:"PÉRDIDA DE CAPITAL DEL EJERCICIO",c14:"SALDO DE PÉRDIDA DE CAPITAL A COMPENSAR EN EJERCICIOS FUTUROS",
 c15:"TOTAL DE INGRESOS",c16:"GANANCIA DE CAPITAL EN LIBROS",c17:"GANANCIAS DE BIENES DEPRECIABLES EN LIBROS",c18:"DIVIDENDOS",c19:"INTERESES EXENTOS",c20:"MENOS INGRESOS O PARTIDAS NO IMPUTABLES A LOS FINES FISCALES",c21:"COSTO DE VENTA (Comisiones, Ventas de Bienes de Terceros)",c22:"BASE IMPONIBLE (Casillas 15-20-21)"
@@ -920,6 +921,13 @@ function parseD2(allRows){
 
 function parseE(allRows){
     const r={};let section='';
+    // X-coordinate ranges for Section A columns (calibrated from DGII PDF output)
+    const colRanges=[
+        {col:'a',min:60,max:120},{col:'b',min:120,max:210},{col:'c',min:210,max:260},
+        {col:'d',min:260,max:325},{col:'e',min:325,max:400},{col:'f',min:400,max:450},
+        {col:'g',min:450,max:545},{col:'h',min:545,max:595},{col:'i',min:595,max:655},
+        {col:'j',min:655,max:730},{col:'k',min:730,max:775},{col:'l',min:775,max:900}
+    ];
     for(const row of allRows){
         const rt=row.map(i=>i.text).join(' ');
         if(rt.includes('PERDIDAS DE AÑOS ANTERIORES')){section='A';continue;}
@@ -930,27 +938,26 @@ function parseE(allRows){
         if(/^\d{1,2}$/.test(ft)&&f.x<40){
             const cn=parseInt(ft);
             if(section==='A'&&cn>=1&&cn<=5){
-                const nums=row.filter(i=>i.x>80).map(i=>({x:i.x,text:i.text.trim()}));
-                const numericItems=nums.filter(n=>isNum(n.text)||/^\d+\.\d{2}$/.test(n.text));
+                const nums=row.filter(i=>i.x>50).map(i=>({x:i.x,text:i.text.trim()}));
+                const numericItems=nums.filter(n=>isNum(n.text)||/^\d{4}$/.test(n.text)||/^\d[\d,]*\.\d{2}$/.test(n.text));
                 numericItems.sort((a,b)=>a.x-b.x);
                 const prefix='c'+cn+'_';
-                if(numericItems.length>0)r[prefix+'b']=parseFmt(numericItems[0].text);
                 for(const ni of numericItems){
-                    if(ni.x>=170&&ni.x<200)r[prefix+'c']=parseFmt(ni.text);
-                    if(ni.x>=200&&ni.x<250)r[prefix+'d']=parseFmt(ni.text);
-                    if(ni.x>=250&&ni.x<310)r[prefix+'e']=parseFmt(ni.text);
-                    if(ni.x>=310&&ni.x<360)r[prefix+'f']=parseFmt(ni.text);
-                    if(ni.x>=360&&ni.x<440)r[prefix+'g']=parseFmt(ni.text);
-                    if(ni.x>=480&&ni.x<520)r[prefix+'i']=parseFmt(ni.text);
-                    if(ni.x>=540)r[prefix+'k']=parseFmt(ni.text);
+                    for(const cr of colRanges){
+                        if(ni.x>=cr.min&&ni.x<cr.max){
+                            r[prefix+cr.col]=cr.col==='a'?Math.round(parseFmt(ni.text)):parseFmt(ni.text);
+                            break;
+                        }
+                    }
                 }
             }
             if(section==='A'&&cn===6){
                 const nums=row.filter(i=>isNum(i.text.trim())&&i.x>100).map(i=>({x:i.x,v:parseFmt(i.text.trim())}));
                 nums.sort((a,b)=>a.x-b.x);
-                if(nums.length>0)r.c6_total_d=nums.find(n=>n.x>180&&n.x<250)?.v||0;
-                if(nums.length>0)r.c6_total_e=nums.find(n=>n.x>250&&n.x<310)?.v||0;
-                if(nums.length>0)r.c6_total_g=nums.find(n=>n.x>360&&n.x<440)?.v||0;
+                for(const cr of colRanges){
+                    const found=nums.find(n=>n.x>=cr.min&&n.x<cr.max);
+                    if(found)r['c6_total_'+cr.col]=found.v;
+                }
             }
             if(section==='B'&&cn>=7&&cn<=10)r['c'+cn]=lastNum(row);
             if(section==='C'&&cn>=11&&cn<=14)r['c'+cn]=lastNum(row);
@@ -1382,6 +1389,7 @@ function renderIR2Preview(){
                 }
             }
         }else if(formType==='e'){
+            const eSuffixes=['_a','_b','_c','_d','_e','_f','_g','_h','_i','_j','_k','_l'];
             for(let i=1;i<=22;i++){
                 const key='c'+i;
                 const desc=getIR2Desc('e',key);
@@ -1389,11 +1397,22 @@ function renderIR2Preview(){
                     const val=typeof data[key]==='number'?data[key].toLocaleString('es-DO',{minimumFractionDigits:2,maximumFractionDigits:2}):data[key];
                     h+=`<tr><td>${i}.</td><td>${desc}</td><td style="text-align:right">${val}</td><td></td></tr>`;
                 }
-                for(const suffix of ['_b','_c','_d','_e','_f','_g','_i','_k']){
+                for(const suffix of eSuffixes){
                     const keyExt=key+suffix;
                     if(data[keyExt]!==undefined){
+                        const colDesc=E_DESC['col'+suffix]||desc;
                         const val=typeof data[keyExt]==='number'?data[keyExt].toLocaleString('es-DO',{minimumFractionDigits:2,maximumFractionDigits:2}):data[keyExt];
-                        h+=`<tr><td>${i}${suffix}</td><td>${desc}</td><td style="text-align:right">${val}</td><td></td></tr>`;
+                        h+=`<tr><td>${i}${suffix}</td><td>${colDesc}</td><td style="text-align:right">${val}</td><td></td></tr>`;
+                    }
+                }
+                if(i===6){
+                    for(const col of eSuffixes){
+                        const totalKey='c6_total'+col;
+                        if(data[totalKey]!==undefined){
+                            const colDesc=E_DESC['col'+col]||'Total';
+                            const val=typeof data[totalKey]==='number'?data[totalKey].toLocaleString('es-DO',{minimumFractionDigits:2,maximumFractionDigits:2}):data[totalKey];
+                            h+=`<tr><td>6.total${col}</td><td>TOTAL - ${colDesc}</td><td style="text-align:right">${val}</td><td></td></tr>`;
+                        }
                     }
                 }
             }
@@ -1545,9 +1564,14 @@ function exportExcel(){
             }else if(ft==='d2'){
                 for(let i=1;i<=49;i++)addRow(i+'.',D2_DESC['c'+i]||'',d['c'+i]);
             }else if(ft==='e'){
-                aoa.push(['A. PÉRDIDAS','Pérdida Inicio','Pérdida Ajustada','Pérdida a Compensar']);
-                for(let i=1;i<=5;i++)addRow(i+'.','Año '+i,d['c'+i+'_b'],d['c'+i+'_e'],d['c'+i+'_g']);
-                addRow('6.','TOTAL',d.c6_total_d,d.c6_total_e,d.c6_total_g);
+                const eCols=['a','b','c','d','e','f','g','h','i','j','k','l'];
+                aoa.push(['A. PÉRDIDAS',E_DESC.col_a,E_DESC.col_b,E_DESC.col_c,E_DESC.col_d,E_DESC.col_e,E_DESC.col_f,E_DESC.col_g,E_DESC.col_h,E_DESC.col_i,E_DESC.col_j,E_DESC.col_k,E_DESC.col_l]);
+                for(let i=1;i<=5;i++){
+                    const p='c'+i+'_';
+                    aoa.push([i+'.',...eCols.map(c=>d[p+c]!==undefined?fmtN(d[p+c]):'')]);
+                }
+                aoa.push(['6. TOTAL','',...eCols.slice(1).map(c=>d['c6_total_'+c]!==undefined?fmtN(d['c6_total_'+c]):'')]);
+                aoa.push([]);
                 aoa.push(['B-D. OTROS','','Valor','']);
                 for(let i=7;i<=22;i++)addRow(i+'.',E_DESC['c'+i]||'',d['c'+i]);
             }else if(ft==='g'){
@@ -1571,7 +1595,7 @@ function exportExcel(){
             aoa.push([]);
         }
         const ir2ws=XLSX.utils.aoa_to_sheet(aoa);
-        ir2ws['!cols']=[{wch:20},{wch:50},{wch:22},{wch:22},{wch:22},{wch:30}];
+        ir2ws['!cols']=[{wch:14},{wch:22},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20}];
         XLSX.utils.book_append_sheet(wb,ir2ws,'IR-2 y Anexos');
     }
 
