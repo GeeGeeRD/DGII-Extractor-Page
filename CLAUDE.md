@@ -55,6 +55,23 @@ Client-side web application that extracts data from Dominican Republic tax autho
 | UI event handlers | 1173-1470 | File handling, preview rendering, tabs |
 | Excel export | 1474-1580 | `exportExcel()` — generates .xlsx output |
 
+## IR-17 Form Versioning (Pre/Post 202506)
+
+The IR-17 form changed structure starting from período fiscal **202506** (June 2025). A new casilla 21 was added for "Ganadería de Carne Bovina (Norma 04-25)", shifting all subsequent casillas by +1.
+
+**Detection:** `parseIR17()` extracts the período fiscal, then remaps old form numbers to the unified (new) structure.
+
+**Unified output always uses the NEW form numbering (34 casillas):**
+- Casillas 1-20: monto/imp pairs (same in both versions)
+- Casilla 21: Ganadería Carne Bovina monto/imp (0 for old forms)
+- Casilla 22: Total Otras Retenciones (was old 21)
+- Casilla 23: Convenios Internacionales (was old 22)
+- Casilla 24: Total de Otras Retenciones (was old 23)
+- Casilla 25: Retribuciones Complementarias monto/imp (was old 24)
+- Casillas 26-34: Liquidación + Penalidades + Total (was old 25-33)
+
+**For old forms (período < 202506):** c21_monto=0, c21_imp=0, then old c21→c22, old c22→c23, etc.
+
 ## Anexo E Structure
 
 The Anexo E form has 4 sections:

@@ -148,21 +148,22 @@ const IR17_FIELDS=[
     {id:'c18_monto',label:'18. Otras Retenciones (07-2007) - Monto'},{id:'c18_imp',label:'18. Otras Retenciones (07-2007) - Impuesto'},
     {id:'c19_monto',label:'19. Intereses Ent. Financieras a PJ - Monto'},{id:'c19_imp',label:'19. Intereses Ent. Financieras a PJ - Impuesto'},
     {id:'c20_monto',label:'20. Intereses Ent. Financieras a PF - Monto'},{id:'c20_imp',label:'20. Intereses Ent. Financieras a PF - Impuesto'},
-    {id:'c21',label:'21. Total Otras Retenciones'},
+    {id:'c21_monto',label:'21. Ganadería Carne Bovina (Norma 04-25) - Monto'},{id:'c21_imp',label:'21. Ganadería Carne Bovina (Norma 04-25) - Impuesto'},
+    {id:'c22',label:'22. Total Otras Retenciones'},
     {id:'seccion_convenios',label:'III. CONVENIOS INTERNACIONALES',isSection:true},
-    {id:'c22',label:'22. Retenciones en Convenios'},
+    {id:'c23',label:'23. Retenciones en Convenios'},
     {id:'seccion_total',label:'IV. TOTAL DE OTRAS RETENCIONES',isSection:true},
-    {id:'c23',label:'23. Total de Otras Retenciones'},
+    {id:'c24',label:'24. Total de Otras Retenciones'},
     {id:'seccion_retrib',label:'V. RETRIBUCIONES COMPLEMENTARIAS',isSection:true},
-    {id:'c24_monto',label:'24. Retribuciones Complementarias - Monto'},{id:'c24_imp',label:'24. Retribuciones Complementarias - Impuesto'},
+    {id:'c25_monto',label:'25. Retribuciones Complementarias - Monto'},{id:'c25_imp',label:'25. Retribuciones Complementarias - Impuesto'},
     {id:'seccion_liq',label:'VI. LIQUIDACIÓN',isSection:true},
-    {id:'c25',label:'25. Impuesto a Pagar'},{id:'c26',label:'26. Saldos Compensables Autorizados'},
-    {id:'c27',label:'27. Pagos Computables a Cuenta'},{id:'c28',label:'28. Saldo a Favor Anterior'},
-    {id:'c29',label:'29. Diferencia a Pagar'},{id:'c30',label:'30. Nuevo Saldo a Favor'},
+    {id:'c26',label:'26. Impuesto a Pagar'},{id:'c27',label:'27. Saldos Compensables Autorizados'},
+    {id:'c28',label:'28. Pagos Computables a Cuenta'},{id:'c29',label:'29. Saldo a Favor Anterior'},
+    {id:'c30',label:'30. Diferencia a Pagar'},{id:'c31',label:'31. Nuevo Saldo a Favor'},
     {id:'seccion_pen',label:'VII. PENALIDADES',isSection:true},
-    {id:'c31',label:'31. Recargos'},{id:'c32',label:'32. Interés Indemnizatorio'},
+    {id:'c32',label:'32. Recargos'},{id:'c33',label:'33. Interés Indemnizatorio'},
     {id:'seccion_pagar',label:'VIII. MONTO A PAGAR',isSection:true},
-    {id:'c33',label:'33. Total a Pagar'},
+    {id:'c34',label:'34. Total a Pagar'},
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -564,32 +565,53 @@ function extractIR17MontoImp(row){
 }
 
 function parseIR17(rows,r){
+    // Phase A: Extract raw data using actual PDF casilla numbers
+    const raw={};
     for(const row of rows){
         const f=row[0], ft=f.text.trim(), rt=row.map(i=>i.text).join(' ');
-        const rec=rt.match(/(\d+-\d+-\d+-\d+\/R17\/\d+)/);if(rec)r.numero_recepcion=rec[1];
-        if(/^\d{4}\/\d{2}\/\d{2}$/.test(ft))r.fecha_recepcion=ft;
-        if(/^\d{9,11}$/.test(ft)&&f.x<130){r.rnc_cedula=ft;if(row.length>=2)r.razon_social=row[1].text.trim();if(row.length>=3)r.nombre_comercial=row[2].text.trim();}
-        for(const it of row){if(/^\d{6}$/.test(it.text.trim())&&it.x>200&&it.x<400)r.periodo_fiscal=it.text.trim();if(/^Normal$/i.test(it.text.trim())&&it.x>400)r.tipo_declaracion='Normal';if(/^Rectificativa$/i.test(it.text.trim()))r.tipo_declaracion='Rectificativa';}
+        const rec=rt.match(/(\d+-\d+-\d+-\d+\/R17\/\d+)/);if(rec)raw.numero_recepcion=rec[1];
+        if(/^\d{4}\/\d{2}\/\d{2}$/.test(ft))raw.fecha_recepcion=ft;
+        if(/^\d{9,11}$/.test(ft)&&f.x<130){raw.rnc_cedula=ft;if(row.length>=2)raw.razon_social=row[1].text.trim();if(row.length>=3)raw.nombre_comercial=row[2].text.trim();}
+        for(const it of row){if(/^\d{6}$/.test(it.text.trim())&&it.x>200&&it.x<400)raw.periodo_fiscal=it.text.trim();if(/^Normal$/i.test(it.text.trim())&&it.x>400)raw.tipo_declaracion='Normal';if(/^Rectificativa$/i.test(it.text.trim()))raw.tipo_declaracion='Rectificativa';}
         if(/^\d{1,2}$/.test(ft)&&f.x<50){
             const cn=parseInt(ft);
-            if(cn>=1&&cn<=20&&(row.some(i=>i.text.trim()==='+')||row.length>1&&/^[A-ZÁÉÍÓÚÑ]/.test(row[1].text))&&r[`c${cn}_monto`]===undefined){
-                const{monto,impuesto}=extractIR17MontoImp(row);r[`c${cn}_monto`]=monto;r[`c${cn}_imp`]=impuesto;
+            if(cn>=1&&cn<=20&&(row.some(i=>i.text.trim()==='+')||row.length>1&&/^[A-ZÁÉÍÓÚÑ]/.test(row[1].text))&&raw[`c${cn}_monto`]===undefined){
+                const{monto,impuesto}=extractIR17MontoImp(row);raw[`c${cn}_monto`]=monto;raw[`c${cn}_imp`]=impuesto;
+            }
+            // Casillas 21+ : detect by content type
+            if(cn>=21&&cn<=34){
+                if(/GANADERÍA|BOVINA|ADQUISICIÓN/i.test(rt)){
+                    const{monto,impuesto}=extractIR17MontoImp(row);raw['c'+cn+'_monto']=monto;raw['c'+cn+'_imp']=impuesto;
+                }else if(/RETRIBUCIONES/i.test(rt)){
+                    const{monto,impuesto}=extractIR17MontoImp(row);raw['c'+cn+'_monto']=monto;raw['c'+cn+'_imp']=impuesto;
+                }else{
+                    raw['c'+cn]=lastNum(row);
+                }
             }
         }
-        if(ft==='21'&&/RETENCIONES/i.test(rt))r.c21=lastNum(row);
-        if(ft==='22'&&f.x<50&&row.some(i=>i.text==='='))r.c22=lastNum(row);
-        if(ft==='23'&&/TOTAL/i.test(rt))r.c23=lastNum(row);
-        if(ft==='24'&&/RETRIBUCIONES/i.test(rt)){const{monto,impuesto}=extractIR17MontoImp(row);r.c24_monto=monto;r.c24_imp=impuesto;}
-        if(ft==='25'&&/IMPUESTO/i.test(rt))r.c25=lastNum(row);
-        if(ft==='26'&&/SALDOS/i.test(rt))r.c26=lastNum(row);
-        if(ft==='27'&&/PAGOS/i.test(rt))r.c27=lastNum(row);
-        if(ft==='28'&&/SALDO/i.test(rt))r.c28=lastNum(row);
-        if(ft==='29'&&/DIFERENCIA/i.test(rt))r.c29=lastNum(row);
-        if(ft==='30'&&/NUEVO|SALDO/i.test(rt))r.c30=lastNum(row);
-        if(ft==='31'&&/RECARGOS/i.test(rt))r.c31=lastNum(row);
-        if(ft==='32'&&/INTER/i.test(rt))r.c32=lastNum(row);
-        if(ft==='33'&&/TOTAL/i.test(rt))r.c33=lastNum(row);
     }
+    // Phase B: Detect form version from período fiscal
+    const periodo=parseInt(raw.periodo_fiscal||'0');
+    const isNewForm=periodo>=202506;
+    // Phase C: Copy text fields
+    for(const tf of TEXT_FIELDS)r[tf]=raw[tf]||'';
+    // Copy casillas 1-20 (same in both versions)
+    for(let i=1;i<=20;i++){r['c'+i+'_monto']=raw['c'+i+'_monto']||0;r['c'+i+'_imp']=raw['c'+i+'_imp']||0;}
+    // Remap casillas 21+ to unified structure
+    if(isNewForm){
+        r.c21_monto=raw.c21_monto||0;r.c21_imp=raw.c21_imp||0;
+        r.c22=raw.c22||0;r.c23=raw.c23||0;r.c24=raw.c24||0;
+        r.c25_monto=raw.c25_monto||0;r.c25_imp=raw.c25_imp||0;
+        for(let i=26;i<=34;i++)r['c'+i]=raw['c'+i]||0;
+    }else{
+        // Old form: shift +1 from casilla 21 onward
+        r.c21_monto=0;r.c21_imp=0;
+        r.c22=raw.c21||0;r.c23=raw.c22||0;r.c24=raw.c23||0;
+        r.c25_monto=raw.c24_monto||0;r.c25_imp=raw.c24_imp||0;
+        r.c26=raw.c25||0;r.c27=raw.c26||0;r.c28=raw.c27||0;r.c29=raw.c28||0;
+        r.c30=raw.c29||0;r.c31=raw.c30||0;r.c32=raw.c31||0;r.c33=raw.c32||0;r.c34=raw.c33||0;
+    }
+    // Phase D: Initialize missing fields with defaults
     for(const fld of IR17_FIELDS){if(fld.isSection)continue;if(r[fld.id]===undefined)r[fld.id]=TEXT_FIELDS.includes(fld.id)?'':0;}
 }
 
