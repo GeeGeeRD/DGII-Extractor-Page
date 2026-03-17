@@ -1104,6 +1104,115 @@ function parseJ(allRows){
     return r;
 }
 
+function isOFVFormat(allRows){
+    const t=allRows.map(r=>r.map(i=>i.text).join(' ')).join('\n');
+    return /dgii\.gov\.do\/ofv/i.test(t)||/Datos\s+de\s+Recepci/i.test(t);
+}
+
+function parseA1OFV(allRows){
+    const r={};
+    for(let i=0;i<allRows.length;i++){
+        const row=allRows[i];
+        const f=row[0],ft=f.text.trim();
+        const subMatch=ft.match(/^(\d{1,2})\.(\d{1,2})/);
+        if(subMatch&&f.x<40){
+            const key='c'+subMatch[1]+'_'+subMatch[2];
+            if(r[key]===undefined){
+                const montos=row.filter(it=>isNum(it.text.trim())&&it.x>330);
+                r[key]=montos.length>0?parseFmt(montos[montos.length-1].text.trim()):0;
+            }
+        }
+        const mainMatch=ft.match(/^(\d{1,2})\.-/);
+        if(mainMatch&&f.x<40){
+            const cn=parseInt(mainMatch[1]);
+            const key='c'+cn;
+            if(r[key]===undefined){
+                let totales=row.filter(it=>isNum(it.text.trim())&&it.x>400);
+                if(totales.length===0&&i>0)totales=allRows[i-1].filter(it=>isNum(it.text.trim())&&it.x>400);
+                r[key]=totales.length>0?parseFmt(totales[totales.length-1].text.trim()):0;
+            }
+        }
+    }
+    return r;
+}
+
+function parseB1OFV(allRows){
+    const r={};
+    for(let i=0;i<allRows.length;i++){
+        const row=allRows[i];
+        const f=row[0],ft=f.text.trim();
+        const subMatch=ft.match(/^(\d{1,2})\.(\d{1,2})/);
+        if(subMatch&&f.x<40){
+            const key='c'+subMatch[1]+'_'+subMatch[2];
+            if(r[key]===undefined){
+                const montos=row.filter(it=>isNum(it.text.trim())&&it.x>330);
+                r[key]=montos.length>0?parseFmt(montos[montos.length-1].text.trim()):0;
+            }
+        }
+        const mainMatch=ft.match(/^(\d{1,2})\./);
+        if(mainMatch&&!ft.match(/^\d{1,2}\.\d/)&&f.x<40){
+            const cn=parseInt(mainMatch[1]);
+            const key='c'+cn;
+            if(r[key]===undefined){
+                let totales=row.filter(it=>isNum(it.text.trim())&&it.x>430);
+                if(totales.length===0&&i>0)totales=allRows[i-1].filter(it=>isNum(it.text.trim())&&it.x>400);
+                r[key]=totales.length>0?parseFmt(totales[totales.length-1].text.trim()):0;
+            }
+        }
+    }
+    return r;
+}
+
+function parseGOFV(allRows){
+    const r={};
+    for(let i=0;i<allRows.length;i++){
+        const row=allRows[i];
+        const rt=row.map(it=>it.text).join(' ');
+        const f=row[0],ft=f.text.trim();
+        if(ft.match(/^1\.-/)&&rt.includes('POSITIVOS')){
+            let tots=row.filter(it=>isNum(it.text.trim())&&it.x>400);
+            if(tots.length===0&&i>0)tots=allRows[i-1].filter(it=>isNum(it.text.trim())&&it.x>400);
+            if(tots.length>0)r.c1_total=parseFmt(tots[tots.length-1].text.trim());
+        }
+        if(ft.match(/^2\.-/)&&rt.includes('NEGATIVOS')){
+            let tots=row.filter(it=>isNum(it.text.trim())&&it.x>400);
+            if(tots.length===0&&i>0)tots=allRows[i-1].filter(it=>isNum(it.text.trim())&&it.x>400);
+            if(tots.length>0)r.c2_total=parseFmt(tots[tots.length-1].text.trim());
+        }
+        if(ft.match(/^3\.-/)&&rt.includes('TOTALES')){
+            const prevNums=i>0?allRows[i-1].filter(it=>isNum(it.text.trim())).map(it=>({x:it.x,v:parseFmt(it.text.trim())})):[];
+            const currNums=row.filter(it=>isNum(it.text.trim())).map(it=>({x:it.x,v:parseFmt(it.text.trim())}));
+            const allNums=[...prevNums,...currNums].sort((a,b)=>a.x-b.x);
+            const pos=allNums.filter(n=>n.x>=300&&n.x<460);
+            const neg=allNums.filter(n=>n.x>=460);
+            r.c3_total_pos=pos.length>0?pos[0].v:0;
+            r.c3_total_neg=neg.length>0?neg[0].v:0;
+        }
+        const subMatch=ft.match(/^(\d)\.(\d{1,2})/);
+        if(subMatch&&f.x<40){
+            const sec=parseInt(subMatch[1]);
+            const sub=parseInt(subMatch[2]);
+            const key='c'+sec+'_'+sub;
+            if(sec===3){
+                const nums=row.filter(it=>isNum(it.text.trim())).map(it=>({x:it.x,v:parseFmt(it.text.trim())}));
+                nums.sort((a,b)=>a.x-b.x);
+                const pos=nums.filter(n=>n.x>=300&&n.x<460);
+                const neg=nums.filter(n=>n.x>=460);
+                if(r[key+'_pos']===undefined){
+                    r[key+'_pos']=pos.length>0?pos[0].v:0;
+                    r[key+'_neg']=neg.length>0?neg[0].v:0;
+                }
+            }else{
+                if(r[key]===undefined){
+                    const montos=row.filter(it=>isNum(it.text.trim())&&it.x>300);
+                    r[key]=montos.length>0?parseFmt(montos[montos.length-1].text.trim()):0;
+                }
+            }
+        }
+    }
+    return r;
+}
+
 function detectIR2Type(allRows){
     const allText=allRows.map(r=>r.map(i=>i.text).join(' ')).join('\n');
     if(/\/IR2\//i.test(allText))return'ir2';
@@ -1144,6 +1253,11 @@ function extractMeta(allRows){
 }
 
 function parseIR2Data(formType,allRows){
+    if(isOFVFormat(allRows)){
+        if(formType==='a1')return parseA1OFV(allRows);
+        if(formType==='b1')return parseB1OFV(allRows);
+        if(formType==='g')return parseGOFV(allRows);
+    }
     const parsers={ir2:parseIR2,act:parseACT,a1:parseA1,b1:parseB1,d:parseD,d1:parseD1,d2:parseD2,e:parseE,g:parseG,h1:parseH1,h2:parseH2,j:parseJ};
     const parser=parsers[formType];
     if(!parser)return{};
