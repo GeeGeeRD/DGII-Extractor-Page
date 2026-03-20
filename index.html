@@ -572,7 +572,7 @@ function parseIR17(rows,r){
         const rec=rt.match(/(\d+-\d+-\d+-\d+\/R17\/\d+)/);if(rec)raw.numero_recepcion=rec[1];
         if(/^\d{4}\/\d{2}\/\d{2}$/.test(ft))raw.fecha_recepcion=ft;
         if(/^\d{9,11}$/.test(ft)&&f.x<130){raw.rnc_cedula=ft;if(row.length>=2)raw.razon_social=row[1].text.trim();if(row.length>=3)raw.nombre_comercial=row[2].text.trim();}
-        for(const it of row){if(/^\d{6}$/.test(it.text.trim())&&it.x>200&&it.x<400)raw.periodo_fiscal=it.text.trim();if(/^Normal$/i.test(it.text.trim())&&it.x>400)raw.tipo_declaracion='Normal';if(/^Rectificativa$/i.test(it.text.trim()))raw.tipo_declaracion='Rectificativa';}
+        for(const it of row){if(/^\d{6}$/.test(it.text.trim())&&it.x>100)raw.periodo_fiscal=it.text.trim();if(/^Normal$/i.test(it.text.trim())&&it.x>400)raw.tipo_declaracion='Normal';if(/^Rectificativa$/i.test(it.text.trim()))raw.tipo_declaracion='Rectificativa';}
         if(/^\d{1,2}$/.test(ft)&&f.x<50){
             const cn=parseInt(ft);
             if(cn>=1&&cn<=20&&(row.some(i=>i.text.trim()==='+')||row.length>1&&/^[A-ZÁÉÍÓÚÑ]/.test(row[1].text))&&raw[`c${cn}_monto`]===undefined){
@@ -624,7 +624,7 @@ function parseIT1(rows,r){
         const rec=rt.match(/(\d+-\d+-\d+-\d+\/IT1\/\d+)/);if(rec)r.numero_recepcion=rec[1];
         const fechaMatch=rt.match(/Fecha\s+Recepci[oó]n:\s*(\d{4}\/\d{2}\/\d{2})/i);if(fechaMatch)r.fecha_recepcion=fechaMatch[1];
         if(/^\d{9,11}$/.test(ft)&&f.x<150){r.rnc_cedula=ft;if(row.length>=2)r.razon_social=row[1].text.trim();if(row.length>=3)r.nombre_comercial=row[2].text.trim();}
-        for(const it of row){if(/^\d{6}$/.test(it.text.trim())&&it.x>200&&it.x<400)r.periodo_fiscal=it.text.trim();if(/^Normal$/i.test(it.text.trim())&&it.x>400)r.tipo_declaracion='Normal';if(/^Rectificativa$/i.test(it.text.trim()))r.tipo_declaracion='Rectificativa';}
+        for(const it of row){if(/^\d{6}$/.test(it.text.trim())&&it.x>100)r.periodo_fiscal=it.text.trim();if(/^Normal$/i.test(it.text.trim())&&it.x>400)r.tipo_declaracion='Normal';if(/^Rectificativa$/i.test(it.text.trim()))r.tipo_declaracion='Rectificativa';}
         if(/^\d{1,2}$/.test(ft)&&f.x<50){
             const cn=parseInt(ft);
             if(cn>=1&&cn<=68){
@@ -655,7 +655,7 @@ function parseAnexoA(rows,r){
             if(row.length>=3)r.nombre_comercial=row[2].text.trim();
         }
         for(const it of row){
-            if(/^\d{6}$/.test(it.text.trim())&&it.x>200&&it.x<500)r.periodo_fiscal=it.text.trim();
+            if(/^\d{6}$/.test(it.text.trim())&&it.x>100)r.periodo_fiscal=it.text.trim();
             if(/^Normal$/i.test(it.text.trim()))r.tipo_declaracion='Normal';
             if(/^Rectificativa$/i.test(it.text.trim()))r.tipo_declaracion='Rectificativa';
         }
@@ -759,23 +759,16 @@ function parseIR3(allRows,r){
 function parseIR2(allRows){
     const r={};
     for(const row of allRows){
-        for(const it of row){
-            const t=it.text.trim();
-            if((t==='A'||t==='B')&&it.x>480&&it.x<500){
-                const nums=row.filter(i=>isNum(i.text.trim())&&i.x>it.x);
-                if(nums.length>0)r['c'+t]=parseFmt(nums[nums.length-1].text.trim());
-                else r['c'+t]=0;
-            }
-            if(/^\d{1,2}$/.test(t)&&it.x>380&&it.x<500){
-                const cn=parseInt(t);
-                if(cn>=1&&cn<=33&&r['c'+cn]===undefined){
-                    const hasDesc=row.some(i=>i.x<100&&/\d+\.-/.test(i.text));
-                    if(hasDesc){
-                        const nums=row.filter(i=>isNum(i.text.trim())&&i.x>it.x);
-                        if(nums.length>0)r['c'+cn]=parseFmt(nums[nums.length-1].text.trim());
-                        else r['c'+cn]=0;
-                    }
-                }
+        const f=row[0],ft=f.text.trim();
+        const abMatch=ft.match(/^([AB])\.\s/);
+        if(abMatch&&f.x<100&&r['c'+abMatch[1]]===undefined){
+            r['c'+abMatch[1]]=lastNum(row);
+        }
+        const numMatch=ft.match(/^(\d{1,2})\.-\s/);
+        if(numMatch&&f.x<100){
+            const cn=parseInt(numMatch[1]);
+            if(cn>=1&&cn<=33&&r['c'+cn]===undefined){
+                r['c'+cn]=lastNum(row);
             }
         }
     }
@@ -863,13 +856,15 @@ function parseD(allRows){
             const cn=parseInt(m[1]);
             if(cn>=9&&cn<=33){
                 if(r['c'+cn+'_cat2']===undefined){
-                    // Cat2 values: x≈354-373, Cat3 values: x≈469; signs at x≈307 excluded by x>320
                     const nums=row.filter(i=>isNum(i.text.trim())&&i.x>320).map(i=>({x:i.x,v:parseFmt(i.text.trim())}));
                     nums.sort((a,b)=>a.x-b.x);
-                    const cat2=nums.filter(n=>n.x<=430);
-                    const cat3=nums.filter(n=>n.x>430);
-                    r['c'+cn+'_cat2']=cat2.length>0?cat2[cat2.length-1].v:0;
-                    r['c'+cn+'_cat3']=cat3.length>0?cat3[cat3.length-1].v:0;
+                    if(nums.length>=2){
+                        r['c'+cn+'_cat2']=nums[0].v;
+                        r['c'+cn+'_cat3']=nums[nums.length-1].v;
+                    }else if(nums.length===1){
+                        if(nums[0].x<420){r['c'+cn+'_cat2']=nums[0].v;r['c'+cn+'_cat3']=0;}
+                        else{r['c'+cn+'_cat2']=0;r['c'+cn+'_cat3']=nums[0].v;}
+                    }else{r['c'+cn+'_cat2']=0;r['c'+cn+'_cat3']=0;}
                 }
             }
             if(cn>=34&&cn<=52&&r['c'+cn]===undefined){
@@ -1018,10 +1013,9 @@ function parseG(allRows){
         if(ft.match(/^3\.-/)&&rt.includes('TOTALES')){
             const nums=row.filter(i=>isNum(i.text.trim())).map(i=>({x:i.x,v:parseFmt(i.text.trim())}));
             nums.sort((a,b)=>a.x-b.x);
-            const pos=nums.filter(n=>n.x>=380&&n.x<480);
-            const neg=nums.filter(n=>n.x>=500);
-            r.c3_total_pos=pos.length>0?pos[0].v:0;
-            r.c3_total_neg=neg.length>0?neg[0].v:0;
+            if(nums.length>=2){r.c3_total_pos=nums[0].v;r.c3_total_neg=nums[nums.length-1].v;}
+            else if(nums.length===1){if(nums[0].x<530){r.c3_total_pos=nums[0].v;r.c3_total_neg=0;}else{r.c3_total_pos=0;r.c3_total_neg=nums[0].v;}}
+            else{r.c3_total_pos=0;r.c3_total_neg=0;}
         }
         const subMatch=ft.match(/^(\d)\.(\d{1,2})\s/);
         if(subMatch&&f.x<40){
@@ -1031,11 +1025,10 @@ function parseG(allRows){
             if(sec===3){
                 const nums=row.filter(i=>isNum(i.text.trim())).map(i=>({x:i.x,v:parseFmt(i.text.trim())}));
                 nums.sort((a,b)=>a.x-b.x);
-                const pos=nums.filter(n=>n.x>=380&&n.x<480);
-                const neg=nums.filter(n=>n.x>=500);
                 if(r[key+'_pos']===undefined){
-                    r[key+'_pos']=pos.length>0?pos[0].v:0;
-                    r[key+'_neg']=neg.length>0?neg[0].v:0;
+                    if(nums.length>=2){r[key+'_pos']=nums[0].v;r[key+'_neg']=nums[nums.length-1].v;}
+                    else if(nums.length===1){if(nums[0].x<530){r[key+'_pos']=nums[0].v;r[key+'_neg']=0;}else{r[key+'_pos']=0;r[key+'_neg']=nums[0].v;}}
+                    else{r[key+'_pos']=0;r[key+'_neg']=0;}
                 }
             }else{
                 if(r[key]===undefined){
@@ -1104,12 +1097,15 @@ function parseJ(allRows){
         if(subMatch&&f.x<40){
             const key='c'+subMatch[1]+'_'+subMatch[2];
             if(r[key+'_cant']===undefined){
-                const nums=row.filter(i=>isNum(i.text.trim())).map(i=>({x:i.x,v:parseFmt(i.text.trim())}));
+                const nums=row.filter(i=>isNum(i.text.trim())&&i.x>=380).map(i=>({x:i.x,v:parseFmt(i.text.trim())}));
                 nums.sort((a,b)=>a.x-b.x);
-                const cant=nums.filter(n=>n.x>=380&&n.x<500);
-                const monto=nums.filter(n=>n.x>=500);
-                r[key+'_cant']=cant.length>0?cant[cant.length-1].v:0;
-                r[key+'_monto']=monto.length>0?monto[monto.length-1].v:0;
+                if(nums.length>=2){
+                    r[key+'_cant']=nums[0].v;
+                    r[key+'_monto']=nums[nums.length-1].v;
+                }else if(nums.length===1){
+                    if(nums[0].x<540){r[key+'_cant']=nums[0].v;r[key+'_monto']=0;}
+                    else{r[key+'_cant']=0;r[key+'_monto']=nums[0].v;}
+                }else{r[key+'_cant']=0;r[key+'_monto']=0;}
             }
         }
     }
@@ -1140,7 +1136,7 @@ function parseA1OFV(allRows){
             const key='c'+cn;
             if(r[key]===undefined){
                 let totales=row.filter(it=>isNum(it.text.trim())&&it.x>400);
-                if(totales.length===0&&i>0)totales=allRows[i-1].filter(it=>isNum(it.text.trim())&&it.x>400);
+                if(totales.length===0&&i>0)totales=allRows[i-1].filter(it=>isNum(it.text.trim())&&it.x>560);
                 r[key]=totales.length>0?parseFmt(totales[totales.length-1].text.trim()):0;
             }
         }
@@ -1195,10 +1191,9 @@ function parseGOFV(allRows){
             const prevNums=i>0?allRows[i-1].filter(it=>isNum(it.text.trim())).map(it=>({x:it.x,v:parseFmt(it.text.trim())})):[];
             const currNums=row.filter(it=>isNum(it.text.trim())).map(it=>({x:it.x,v:parseFmt(it.text.trim())}));
             const allNums=[...prevNums,...currNums].sort((a,b)=>a.x-b.x);
-            const pos=allNums.filter(n=>n.x>=300&&n.x<460);
-            const neg=allNums.filter(n=>n.x>=460);
-            r.c3_total_pos=pos.length>0?pos[0].v:0;
-            r.c3_total_neg=neg.length>0?neg[0].v:0;
+            if(allNums.length>=2){r.c3_total_pos=allNums[0].v;r.c3_total_neg=allNums[allNums.length-1].v;}
+            else if(allNums.length===1){if(allNums[0].x<530){r.c3_total_pos=allNums[0].v;r.c3_total_neg=0;}else{r.c3_total_pos=0;r.c3_total_neg=allNums[0].v;}}
+            else{r.c3_total_pos=0;r.c3_total_neg=0;}
         }
         const subMatch=ft.match(/^(\d)\.(\d{1,2})/);
         if(subMatch&&f.x<40){
@@ -1208,11 +1203,10 @@ function parseGOFV(allRows){
             if(sec===3){
                 const nums=row.filter(it=>isNum(it.text.trim())).map(it=>({x:it.x,v:parseFmt(it.text.trim())}));
                 nums.sort((a,b)=>a.x-b.x);
-                const pos=nums.filter(n=>n.x>=300&&n.x<460);
-                const neg=nums.filter(n=>n.x>=460);
                 if(r[key+'_pos']===undefined){
-                    r[key+'_pos']=pos.length>0?pos[0].v:0;
-                    r[key+'_neg']=neg.length>0?neg[0].v:0;
+                    if(nums.length>=2){r[key+'_pos']=nums[0].v;r[key+'_neg']=nums[nums.length-1].v;}
+                    else if(nums.length===1){if(nums[0].x<530){r[key+'_pos']=nums[0].v;r[key+'_neg']=0;}else{r[key+'_pos']=0;r[key+'_neg']=nums[0].v;}}
+                    else{r[key+'_pos']=0;r[key+'_neg']=0;}
                 }
             }else{
                 if(r[key]===undefined){
